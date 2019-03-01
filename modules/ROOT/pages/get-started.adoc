@@ -1,0 +1,147 @@
+= 快速入门
+
+== Images and containers
+
+A container is launched by running an image. An *image* is an executable package that includes everything needed to run an application--the code, a runtime, libraries, environment variables, and configuration files.
+
+A *container* is a runtime instance of an image--what the image becomes in memory when executed (that is, an image with state, or a user process). You can see a list of your running containers with the command, docker ps, just as you would in Linux.
+
+== Containers and virtual machines
+
+A *container* runs natively on Linux and shares the kernel of the host machine with other containers. It runs a discrete process, taking no more memory than any other executable, making it lightweight.
+
+By contrast, a *virtual machine* (VM) runs a full-blown “guest” operating system with virtual access to host resources through a hypervisor. In general, VMs provide an environment with more resources than most applications need.
+
+
+
+[source,bash]
+----
+# 查看 docker 版本，版本的简要信息
+docker --version
+
+# 查看 docker 版本详细信息
+docker version
+
+# 查看 docker 基本信息，挺详细
+# Display system-wide information
+docker info
+
+# 运行 image
+docker run hello-world
+
+# 查看已经下载的 image
+docker image ls
+
+# 查看所有的 container（包含已经执行完成的）
+docker container ls --all
+
+
+## List Docker CLI commands
+docker
+docker container --help
+
+## Display Docker version and info
+docker --version
+docker version
+docker info
+
+## Execute Docker image
+docker run hello-world
+
+## List Docker images
+docker image ls
+
+## List Docker containers (running, all, all in quiet mode)
+docker container ls
+docker container ls --all
+docker container ls -aq
+----
+
+== Dockerfile
+
+`Dockerfile` defines what goes on in the environment inside your container. Access to resources like networking interfaces and disk drives is virtualized inside this environment, which is isolated from the rest of your system, so you need to map ports to the outside world, and be specific about what files you want to “copy in” to that environment.
+
+[source,bash]
+----
+include::example$01-get-started/Dockerfile[]
+----
+
+[source,bash]
+----
+docker build --tag=01-friendlyhello .
+
+docker image ls
+
+----
+
+.Troubleshooting Tips
+****
+. Proxy server settings
++
+[source,bash]
+----
+# Set proxy server, replace host:port with values for your servers
+ENV http_proxy host:port
+ENV https_proxy host:port
+----
++
+. DNS settings
++
+./etc/docker/daemon.json
+[source,javascript]
+----
+{
+  "dns": ["your_dns_address", "8.8.8.8"]
+}
+----
++
+[source,bash]
+----
+sudo service docker restart
+----
+****
+
+[source,bash]
+----
+docker run -p 4000:80 01-friendlyhello
+
+# 后台运行
+docker run -d -p 4000:80 01-friendlyhello
+
+docker container ls
+
+# 停止指定容器
+docker container stop <ContainerId>
+
+# 登录
+docker login
+
+# 给指定 image 打 tag
+docker tag image username/repository:tag
+docker tag 01-friendlyhello diguage/01-get-started:part2
+
+docker image ls
+
+# Publish the image
+docker push username/repository:tag
+docker push diguage/01-get-started:part2
+
+# Pull and run the image from the remote repository
+docker run -p 4000:80 username/repository:tag
+----
+
+A registry is a collection of repositories, and a repository is a collection of images—sort of like a GitHub repository, except the code is already built.
+
+No matter where `docker run` executes, it pulls your image, along with Python and all the dependencies from `requirements.txt`, and runs your code. 
+
+== Compose
+
+TIP: TODO：这部分回头使用 Kubernetes 相关内容重做一遍。
+
+Services are really just “containers in production.” A service only runs one image, but it codifies the way that image runs—what ports it should use, how many replicas of the container should run so the service has the capacity it needs, and so on.
+
+
+[source,bash]
+----
+
+----
