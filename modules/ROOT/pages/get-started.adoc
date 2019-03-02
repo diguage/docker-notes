@@ -141,6 +141,64 @@ TIP: TODO：这部分回头使用 Kubernetes 相关内容重做一遍。
 Services are really just “containers in production.” A service only runs one image, but it codifies the way that image runs—what ports it should use, how many replicas of the container should run so the service has the capacity it needs, and so on.
 
 
+[source,yaml]
+----
+include::example$01-get-started/docker-compose.yml[]
+----
+
+
+[source,bash]
+----
+docker swarm init
+
+docker stack deploy -c docker-compose.yml getstartedlab
+
+docker service ls
+
+# view all services associated with the getstartedlab stack:
+docker stack services getstartedlab
+
+# List the tasks for your service:
+docker service ps getstartedlab_web
+
+# 仅仅列出 Container ID
+docker container ls -q
+
+docker stack ps getstartedlab
+
+# Scale the app： 修改副本数量。
+docker stack deploy -c docker-compose.yml getstartedlab
+# 扩容的时候为什么要杀掉原来的 container？有业务正在处理的节点是怎么处理的？
+
+# Take the app down
+docker stack rm getstartedlab
+
+# Take down the swarm.
+docker swarm leave --force
+
+----
+
+A single container running in a service is called a *task*.
+
+[qanda]
+使用 `docker service ps getstartedlab_web` 与 `docker container ls -q` 中输出的 ID，为什么不同？有何关系？::
+  ？？
+
+with each request, one of the 5 tasks is chosen, in a round-robin fashion, to respond. 
+
+
+
+[source,bash]
+----
+
+----
+
+
+[source,bash]
+----
+
+----
+
 [source,bash]
 ----
 
