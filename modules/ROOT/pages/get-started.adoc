@@ -14,6 +14,10 @@ A *container* runs natively on Linux and shares the kernel of the host machine w
 By contrast, a *virtual machine* (VM) runs a full-blown “guest” operating system with virtual access to host resources through a hypervisor. In general, VMs provide an environment with more resources than most applications need.
 
 
+image::Container@2x.png[title="container", alt="container", width="95%"]
+
+image::VM@2x.png[title="virtual machine", alt="virtual machine", width="95%"]
+
 
 [source,bash]
 ----
@@ -144,9 +148,25 @@ Services are really just “containers in production.” A service only runs one
 
 [source,yaml]
 ----
-include::example$01-get-started/docker-compose.yml[]
+version: "3"
+services: 
+  web:
+    image: diguage/01-get-started:part2
+    deploy:
+      replicas: 5
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 50M
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "4000:80"
+    networks: 
+      - webnet
+networks: 
+  webnet:
 ----
-
 
 [source,bash]
 ----
@@ -238,14 +258,14 @@ eval $(docker-machine env myvm1)
 # 现在 myvm1 被激活了
 docker-machine ls
 
-# 部署应用，配置文件中的端口要从原来的4000:80，改为 80:80 。
+# 部署应用（上文中的端口号是 4000:80，这里保持不变。官方文档中漏提了需要修改端口号。）
 docker stack deploy -c docker-compose.yml getstartedlab
 
 # 如果成功的话，这可以也看到 副本集 分子和分母相等。
 docker service ls
 
 # 访问
-curl http://192.168.99.100
+curl http://192.168.99.100:4000
 # 每次 `docker-machine create` IP 地址会增加
 
 # 删除
@@ -262,6 +282,9 @@ docker-machine rm <machine-name>
 ----
 
 TIP: 管理永远是 2377 端口，
+
+
+image::ingress-routing-mesh.png[title="ingress 路由", alt="ingress 路由", width="95%"]
 
 这里出了个问题，排除思路：
 
@@ -412,26 +435,97 @@ diguage/01-get-started   <none>              13e8d6379f20        38 hours ago   
 <1> 异常情况下，可能没有镜像信息
 
 
+== Stacks
+
+. stack -- A stack is a group of interrelated services that share dependencies, and can be orchestrated and scaled together.
 
 [source,bash]
 ----
+# 修改 docker-compose.yml 增加服务定义，然后发布
+docker stack deploy -c docker-compose.yml getstartedlab
 
+# 查看服务状态
+docker stack services getstartedlab
+
+# 查看服务中的容器状态
+docker stack ps getstartedlab
+
+# 部署 Redis 之前，需要在 manager 节点创建相关目录
+docker-machine ssh myvm1 "mkdir ./data"
+
+# 关闭服务
+docker stack rm getstartedlab
 ----
+
+查看 Web 页面，确认服务状态
+
+. http://192.168.99.102:4000/
+. http://192.168.99.102:8080/
+
+[source,yml]
+----
+version: "3"
+services: 
+  web:
+    image: diguage/01-get-started:part2
+    deploy:
+      replicas: 5
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 50M
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "4000:80"
+    networks: 
+      - webnet
+  visualizer:
+    image: dockersamples/visualizer:stable
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+    networks:
+      - webnet
+networks: 
+  webnet:
+----
+
+增加 Redis 服务
 
 [source,bash]
 ----
+# 部署 Redis 之前，需要在 manager 节点创建相关目录
+docker-machine ssh myvm1 "mkdir ./data" <1>
+----
+<1> 通过这里也可以看出，是在 `myvm1` 内部启动了 Docker container。
 
+[source,yaml]
 ----
-
-[source,bash]
-----
-
-----
-[source,bash]
-----
-
-----
-[source,bash]
+include::example$01-get-started/docker-compose.yml[]
 ----
 
-----
+[qanda]
+Web 服务是如何做到 Redis 服务的？根据服务名称吗？::
+  ??
+负载均衡是如何做的？能否配置不同的负载均衡算法？::
+  ??
+
+
+
+// [source,bash]
+// ----
+
+// ----
+// [source,bash]
+// ----
+
+// ----
+// [source,bash]
+// ----
+
+// ----
