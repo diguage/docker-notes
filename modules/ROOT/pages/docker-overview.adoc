@@ -1,0 +1,110 @@
+= 概述
+
+
+== Docker Engine
+
+. a daemon process (the `dockerd` command)
+. A REST API
+. A command line interface (CLI) client (the `docker` command).
+
+image::engine-components-flow.png[title="Docker Engine Components", alt="Docker Engine Components", width="95%"]
+
+The daemon creates and manages Docker objects, such as images, containers, networks, and volumes.
+
+== What can I use Docker for?
+
+. Fast, consistent delivery of your applications
+. Responsive deployment and scaling
+. Running more workloads on the same hardware
+
+== Docker Architecture
+
+image::architecture.svg[title="Docker Architecture", alt="Docker Architecture", width="95%"]
+
+=== The Docker daemon
+
+. listens for Docker API requests
+. manages Docker objects
+
+=== The Docker client
+
+The `docker` command uses the Docker API. 
+
+=== Docker registries
+
+A Docker _registry_ stores Docker images.
+
+Docker Hub is a public registry.
+
+=== Docker objects
+
+. image
+. container
+. network
+. volume
+. plugin
+. other objects
+
+==== IMAGES
+
+An image is a read-only template with instructions for creating a Docker container. 
+
+==== CONTAINERS
+
+A container is a runnable instance of an image.
+
+==== Example
+
+`docker run -i -t ubuntu /bin/bash` 
+
+. Docker pulls the `ubuntu` image from your configured registry, `docker pull ubuntu`;
+. Docker creates a new container, `docker container create`;
+. Docker allocates a read-write filesystem to the container, as its final layer. 
+. Docker creates a network interface to connect the container to the default network
+. Docker starts the container and executes `/bin/bash`.
+. type `exit` to terminate the `/bin/bash` command, the container stops but is not removed.
+
+==== SERVICES
+
+Services allow you to scale containers across multiple Docker daemons, which all work together as a swarm with multiple managers and workers.
+
+== The underlying technology
+
+=== Namespaces
+
+Docker uses a technology called `namespaces` to provide the isolated workspace called the container. 
+
+. The `pid` namespace: Process isolation (PID: Process ID).
+. The `net` namespace: Managing network interfaces (NET: Networking).
+. The `ipc` namespace: Managing access to IPC resources (IPC: InterProcess Communication).
+. The `mnt` namespace: Managing filesystem mount points (MNT: Mount).
+. The `uts` namespace: Isolating kernel and version identifiers. (UTS: Unix Timesharing System).
+
+=== Control groups
+
+A control group (`cgroup`) limits an application to a specific set of resources. 
+
+=== Union file systems
+
+Union file systems, or UnionFS, are file systems that operate by creating layers, making them very lightweight and fast.
+
+Docker Engine can use multiple UnionFS variants, including AUFS, btrfs, vfs, and DeviceMapper.
+
+=== Container format
+
+Docker Engine combines the namespaces, control groups, and UnionFS into a wrapper called a container format. The default container format is `libcontainer`. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
