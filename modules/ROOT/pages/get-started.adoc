@@ -76,7 +76,6 @@ include::example$01-get-started/Dockerfile[]
 docker build --tag=01-friendlyhello .
 
 docker image ls
-
 ----
 
 .Troubleshooting Tips
