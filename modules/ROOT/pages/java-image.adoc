@@ -168,3 +168,9 @@ TIP: 在这一步中，因为没有 `JAR_FILE` 参数。所以，上节内容中
 == 小结
 
 通过三个示例，D瓜哥介绍三种为 Java 应用构建 Docker 镜像的方法。不过，这节内容只能算个入门，还有连接数据库等各种非常实用的相关内容没有介绍。后续再慢慢补充。
+
+== 参考资料
+
+. https://spring.io/guides/gs/spring-boot-docker/[Getting Started · Spring Boot with Docker]
+. https://github.com/spotify/dockerfile-maven[spotify/dockerfile-maven: A set of Maven tools for dealing with Dockerfiles]
+. https://docs.docker.com/engine/reference/builder/#arg[Dockerfile reference | Docker Documentation]
