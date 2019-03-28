@@ -1,4 +1,7 @@
 * xref:index.adoc[Docker 学习笔记]
 * xref:get-started.adoc[快速入门]
 * xref:docker-overview.adoc[概述]
+* xref:java-image.adoc[制作 Java 镜像]
+// * xref:12factor-java-application.adoc[12 Factor Java Application]
+// * xref:dev-best-practices.adoc[Docker 开发最佳实践]
 

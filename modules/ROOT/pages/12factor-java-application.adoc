@@ -1,0 +1,4 @@
+= 12 Factor Java Application
+
+. https://github.com/docker/labs/tree/master/developer-tools/java/[labs/developer-tools/java at master · docker/labs]
+. https://github.com/docker/labs/blob/master/12factor/README.md[labs/README.md at master · docker/labs]

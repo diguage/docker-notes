@@ -1,0 +1,170 @@
+= 构建 Java 应用镜像
+
+前面入门了 Docker，作为一个 Javaer，构建 Java 的镜像也是必由之路。这节我们做这方面的
+
+TIP: 相关代码已经上传到了 https://github.com/diguage/dockerstrap[diguage/dockerstrap: Docker for Java Application]，需求请取用。
+
+== 开发 Java 应用
+
+地瓜使用的是 Spring Boot，所以，直接在 https://start.spring.io/[Spring Initializr] 中生成一个模板项目，具体信息如下：
+
+. Project: `Maven`
+. Language: `Java`
+. Spring Boot: `2.1.3` -- 本想试用一下 `2.2.0 M1`，无奈本地启动总报错。为了不耽误主业，换成 `2.1.3`
+. Group: `com.diguage`
+. Artifact: `dockerstrap` -- 想起了 `Bootstrap`，微创新一下，起了这个名字。
+. Dependencies: `Web` -- 选上 `Web`。
+
+点击 `Generate Project` 按钮，把生成好的项目模板下载下来，导入到 IntelliJ IDEA 中。
+
+我们还需要增加一个接受访问请求的 Action 方法。在 `com.diguage.dockerstrap` 下，增加如下类：
+
+[source,java]
+----
+package com.diguage.dockerstrap;
+
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * @author D瓜哥, https://www.diguage.com/
+ * @since 2019-03-27 22:15
+ */
+@RestController
+public class HelloRestController {
+    @RequestMapping("/")
+    public String index() {
+        return "Hello D瓜哥！";
+    }
+}
+----
+
+启动项目，默认是 `8080` 端口，访问 `http://localhost:8080/`，如果能正确输出上文中的 `Hello D瓜哥！`，则 Java 应用准备完毕。
+
+== 手动构建 Docker 镜像
+
+在项目的根目录，增加 `Dockerfile` 文件，内容如下
+
+.Dockerfile
+[source]
+----
+FROM openjdk:8-jdk-alpine
+VOLUME /tmp
+ARG JAR_FILE
+COPY ${JAR_FILE} app.jar
+ENTRYPOINT ["java","-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+----
+
+[TIP]
+====
+We added a VOLUME pointing to "/tmp" because that is where a Spring Boot application creates working directories for Tomcat by default. The effect is to create a temporary file on your host under "/var/lib/docker" and link it to the container under "/tmp". This step is optional for the simple app that we wrote here, but can be necessary for other Spring Boot applications if they need to actually write in the filesystem.
+
+To reduce  https://wiki.apache.org/tomcat/HowTo/FasterStartUp#Entropy_Source[Tomcat startup time] we added a system property pointing to "/dev/urandom" as a source of entropy. This is not necessary with more recent versions of Spring Boot, if you use the "standard" version of Tomcat (or any other web server).
+====
+
+. 打包 Java 应用： `mvn package`，这样在 `target` 目录下，就有了 `dockerstrap-0.0.1.jar` 文件（D瓜哥修改了 Maven 项目的版本为 `0.0.1`。）
+. 启动 Java 应用： `java -jar target/dockerstrap-0.0.1.jar`，访问 `http://localhost:8080/`，正常后退出。
+. 构建 Docker 镜像：
++
+[source,bash]
+----
+docker build --build-arg JAR_FILE=./target/dockerstrap-0.0.1.jar -t dockerstrap .
+----
++
+. 启动 Docker 镜像：
++
+[source,bash]
+----
+docker run -p 8888:8080 -ti dockerstrap
+----
++
+. 访问 `http://localhost:8888/` 检验结果。
+
+== 使用 Maven 插件构建 Docker 镜像（一）
+
+这里，我们继续使用上文提到的 `Dockerfile` 内容。
+
+在 `pom.xml` 中增加 Docker 构建插件：
+
+[source,xml]
+----
+<properties>
+   <docker.image.prefix>diguage</docker.image.prefix>
+</properties>
+<plugin>
+    <groupId>com.spotify</groupId>
+    <artifactId>dockerfile-maven-plugin</artifactId>
+    <version>1.4.10</version>
+    <configuration>
+        <repository>${docker.image.prefix}/${project.artifactId}</repository>
+        <tag>${project.version}</tag>
+        <buildArgs>
+            <JAR_FILE>target/${project.build.finalName}.${project.packaging}</JAR_FILE> <1>
+        </buildArgs>
+    </configuration>
+</plugin>
+----
+<1> 这个地方只能这样写，不能 `${project.build.directory}/${project.build.finalName}.${project.packaging}`。否则，识别不到这个 Jar 包。具体原因请看： https://github.com/spotify/dockerfile-maven/issues/101[Artifact not copied when using Maven `${project.build.directory}` property.]
+
+然后使用 `mvn dockerfile:build` 构建镜像。
+
+最后，启动镜像 `docker run -p 8888:8080 -ti diguage/dockerstrap:0.0.1`，访问 `http://localhost:8080/` 检查镜像。
+
+NOTE: 基于 Maven 构建 Docker 镜像使用的是 https://github.com/spotify/dockerfile-maven[spotify/dockerfile-maven: A set of Maven tools for dealing with Dockerfiles] 这个插件，更详细的使用说明，请查看该插件的文档。
+
+== 使用 Maven 插件构建 Docker 镜像（二）
+
+上节内容中，是将 Java 项目先打包成了一个 Jar 文件，然后将这个 Jar 文件拷贝到 Docker 镜像中，在 Docker 直接运行这个文件。
+
+这节，我们尝试一下，不打包 Jar 文件，而是直接运行编译后的项目。所以，我们需要修改一下 `Dockerfile` 的内容。
+
+.Dockerfile
+[source]
+----
+FROM openjdk:8-jdk-alpine
+VOLUME /tmp
+ARG DEPENDENCY=target/dependency
+COPY ${DEPENDENCY}/BOOT-INF/lib /app/lib
+COPY ${DEPENDENCY}/META-INF /app/META-INF
+COPY ${DEPENDENCY}/BOOT-INF/classes /app
+ENTRYPOINT ["java","-cp","app:app/lib/*","com.diguage.dockerstrap.DockerstrapApplication"] <1>
+----
+<1> 请注意入口类名。
+
+TIP: 在这一步中，因为没有 `JAR_FILE` 参数。所以，上节内容中的 `<buildArgs>` 可以删掉。
+
+为了确保在构建 Docker 镜像之前，编译结果没有被打成 Jar 包，我们需要配置一下 Maven 的依赖插件。配置如下：
+
+[source,xml]
+----
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-dependency-plugin</artifactId>
+    <executions>
+        <execution>
+            <id>unpack</id>
+            <phase>package</phase>
+            <goals>
+                <goal>unpack</goal>
+            </goals>
+            <configuration>
+                <artifactItems>
+                    <artifactItem>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>${project.artifactId}</artifactId>
+                        <version>${project.version}</version>
+                    </artifactItem>
+                </artifactItems>
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
+----
+
+执行 `mvn install dockerfile:build` 构建 Docker 镜像。
+
+最后，启动镜像 `docker run -p 8888:8080 -ti diguage/dockerstrap:0.0.1`，访问 `http://localhost:8080/` 检查镜像。
+
+== 小结
+
+通过三个示例，D瓜哥介绍三种为 Java 应用构建 Docker 镜像的方法。不过，这节内容只能算个入门，还有连接数据库等各种非常实用的相关内容没有介绍。后续再慢慢补充。

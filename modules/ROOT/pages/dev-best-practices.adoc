@@ -1,0 +1,22 @@
+= Docker 开发最佳实践
+
+== How to keep your images small
+
+. Start with an appropriate base image.
+. Use multistage builds.
+. If you have multiple images with a lot in common, consider creating your own base image with the shared components, and basing your unique images on that. 
+. To keep your production image lean but allow for debugging, consider using the production image as the base image for the debug image.
+. When building images, always tag them with useful tags which codify version information, intended destination (`prod` or `test`, for instance), stability, or other information that is useful when deploying the application in different environments. 
+
+== Where and how to persist application data
+
+. Avoid storing application data in your container’s writable layer using storage drivers.
+. Instead, store data using volumes.
+. One case where it is appropriate to use bind mounts is during development, when you may want to mount your source directory or a binary you just built into your container.
+. For production, use secrets to store sensitive application data used by services, and use configs for non-sensitive data such as configuration files.
+
+
+== Use CI/CD for testing and deployment
+
+. When you check a change into source control or create a pull request, use Docker Hub or another CI/CD pipeline to automatically build and tag a Docker image and test it.
+. Take this even further with Docker EE by requiring your development, testing, and security teams to sign images before they can be deployed into production. 
