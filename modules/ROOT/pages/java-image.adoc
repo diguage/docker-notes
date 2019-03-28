@@ -104,7 +104,7 @@ docker run -p 8888:8080 -ti dockerstrap
     </configuration>
 </plugin>
 ----
-<1> 这个地方只能这样写，不能 `${project.build.directory}/${project.build.finalName}.${project.packaging}`。否则，识别不到这个 Jar 包。具体原因请看： https://github.com/spotify/dockerfile-maven/issues/101[Artifact not copied when using Maven `${project.build.directory}` property.]
+<1> 这个地方只能这样写，不能 `${project.build.directory}/${project.build.finalName}.${project.packaging}` 。否则，识别不到这个 Jar 包。具体原因请看： https://github.com/spotify/dockerfile-maven/issues/101[Artifact not copied when using Maven `${project.build.directory}` property.]
 
 然后使用 `mvn dockerfile:build` 构建镜像。
 
