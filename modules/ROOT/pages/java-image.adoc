@@ -1,12 +1,12 @@
 = 构建 Java 应用镜像
 
-前面入门了 Docker，作为一个 Javaer，构建 Java 的镜像也是必由之路。这节我们做这方面的
+前面入门了 Docker，作为一个 Javaer，构建 Java 的镜像也是必由之路。D瓜哥在这节来做这方面的试验。
 
 TIP: 相关代码已经上传到了 https://github.com/diguage/dockerstrap[diguage/dockerstrap: Docker for Java Application]，需求请取用。
 
 == 开发 Java 应用
 
-地瓜使用的是 Spring Boot，所以，直接在 https://start.spring.io/[Spring Initializr] 中生成一个模板项目，具体信息如下：
+D瓜哥使用的是 Spring Boot，所以，直接在 https://start.spring.io/[Spring Initializr] 中生成一个模板项目，具体信息如下：
 
 . Project: `Maven`
 . Language: `Java`
