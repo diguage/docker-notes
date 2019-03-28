@@ -165,6 +165,26 @@ TIP: 在这一步中，因为没有 `JAR_FILE` 参数。所以，上节内容中
 
 最后，启动镜像 `docker run -p 8888:8080 -ti diguage/dockerstrap:0.0.1`，访问 `http://localhost:8080/` 检查镜像。
 
+== 发布镜像
+
+可以将上面做的镜像发布到 Docker Hub，这样在其他电脑上也可以运行这个镜像。
+
+. 第一步，需要在 `https://hub.docker.com/` 注册一个账号。
+. 登录： `docker login`，使用上一步注册的账号和秘密登录。
+. 推送： `docker push diguage/dockerstrap:0.0.1`
++
+[TIP]
+====
+如果想修改 `tag` 则可以使用下面的命令来完成。比如，我们想把 `tag` 修改为 `1.0.0`，则可以执行如下命令：
+
+[source,bash]
+----
+docker tag  diguage/dockerstrap:0.0.1 diguage/dockerstrap:1.0.0
+----
+====
++
+. Maven 插件也可以直接推送： `mvn dockerfile:push`。 -- 需要先执行 `mvn install dockerfile:build` 将镜像构建好。
+
 == 小结
 
 通过三个示例，D瓜哥介绍三种为 Java 应用构建 Docker 镜像的方法。不过，这节内容只能算个入门，还有连接数据库等各种非常实用的相关内容没有介绍。后续再慢慢补充。
