@@ -15,6 +15,8 @@ image::types-of-mounts.png[title="Docker storage", alt="Docker storage", width="
 * *Bind mounts* may be stored anywhere on the host system. They may even be important system files or directories. Non-Docker processes on the Docker host or a Docker container can modify them at any time.
 * `tmpfs` mounts are stored in the host system’s memory only, and are never written to the host system’s filesystem.
 
+TIP: 在 Linux 的 `/var/lib/docker/volumes/` 目录下，有对应的每个 `volume` 的目录。
+
 In Docker 17.06 and higher, we recommend using the `--mount` flag for both containers and services, for bind mounts, volumes, or `tmpfs` mounts, as the syntax is more clear.
 
 *Good use cases for volumes*
@@ -193,35 +195,343 @@ $ docker volume prune
 
 NOTE: `docker plugin` 是什么鬼？
 
-== 
+== bind mounts
+
+Bind mounts have been around since the early days of Docker. When you use a bind mount, a file or directory on the host machine is mounted into a container. The file or directory is referenced by its full or relative path on the host machine. 
+
+Bind mounts are very performant, but they rely on the host machine’s filesystem having a specific directory structure available.
+
+image::types-of-mounts-bind.png[title="bind mounts", alt="bind mounts", width="95%"]
+
+
+If you bind-mount into a non-empty directory on the container, the directory’s existing contents are obscured by the bind mount.
+
+[source,bash]
+----
+$ docker run -d \
+    -it \
+    --name broken-container \
+    --mount type=bind,source=/tmp,target=/usr \
+    nginx:latest <1>
+
+docker: Error response from daemon: OCI runtime create failed: container_linux.go:344: starting container process caused "exec: \"nginx\": executable file not found in $PATH": unknown.
+
+$ docker container rm broken-container
+----
+<1> 为什么报错？难道是因为 `/tmp` 目录覆盖了 `/usr` 目录吗？
+
+[source,bash]
+----
+$ docker run -d \
+    -it \
+    --name devtest \
+    --mount type=bind,source="$(pwd)"/target,target=/app,readonly \
+    nginx:latest
+
+$ docker inspect devtest
+
+$ docker container stop devtest
+
+$ docker container rm devtest
+----
+
+=== Configure bind propagation
+
+Bind propagation defaults to rprivate for both bind mounts and volumes. It is only configurable for bind mounts, and only on Linux host machines.
 
 
 
 
+[%header,cols="2,8"]
+|===
+|Propagation setting | Description
+
+| `shared`
+| Sub-mounts of the original mount are exposed to replica mounts, and sub-mounts of replica mounts are also propagated to the original mount.
+
+| `slave`
+| similar to a shared mount, but only in one direction. If the original mount exposes a sub-mount, the replica mount can see it. However, if the replica mount exposes a sub-mount, the original mount cannot see it.
+
+| `private`
+| The mount is private. Sub-mounts within it are not exposed to replica mounts, and sub-mounts of replica mounts are not exposed to the original mount.
+
+| `rshared`
+| The same as shared, but the propagation also extends to and from mount points nested within any of the original or replica mount points.
+
+| `rslave`
+| The same as slave, but the propagation also extends to and from mount points nested within any of the original or replica mount points.
+
+| `rprivate`
+| The default. The same as private, meaning that no mount points anywhere within the original or replica mount points propagate in either direction.
+|===
+
+WARNING: 这块不是很明白！
+
+For more information about bind propagation, see the https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt[Linux kernel documentation for shared subtree].
+
+[source,bash]
+----
+$ docker run -d \
+  -it \
+  --name devtest \
+  --mount type=bind,source="$(pwd)"/target,target=/app \ <1>
+  --mount type=bind,source="$(pwd)"/target,target=/app2,readonly,bind-propagation=rslave \ <1>
+  nginx:latest 
+----
+<1> 怎么查看这个 `/app` 和 `/app2`：`docker exec  -ti devtest bash`。 Now if you create `/app/foo/`, `/app2/foo/` also exists.
+
+If you use selinux you can add the z or Z options to modify the selinux label of the host file or directory being mounted into the container. 
 
 
 
+If you use selinux you can add the `z` or `Z` options to modify the selinux label of the host file or directory being mounted into the container. 
+
+* The `z` option indicates that the bind mount content is shared among multiple containers.
+* The `Z` option indicates that the bind mount content is private and unshared.
+
+It is not possible to modify the selinux label using the `--mount` flag.
+
+[source,bash]
+----
+$ docker run -d \
+  -it \
+  --name devtest \
+  -v "$(pwd)"/target:/app:z \ <1>
+  nginx:latest
+----
+<1> 怎么看一下效果？
 
 
 
+=== Configure mount consistency for macOS
+
+Docker Desktop for Mac uses `osxfs` to propagate directories and files shared from macOS to the Linux VM.
+
+* `consistent` or `default`: The default setting with full consistency, as described above.
+* `delegated`: The container runtime’s view of the mount is authoritative. There may be delays before updates made in a container are visible on the host.
+* `cached`: The macOS host’s view of the mount is authoritative. There may be delays before updates made on the host are visible within a container.
+
+[source,bash]
+----
+$ docker run -d \
+  -it \
+  --name devtest \
+  --mount type=bind,source="$(pwd)"/target,destination=/app,consistency=cached \ <1>
+  nginx:latest
+----
+<1> 怎么验证一下？
+
+== tmpfs mounts
+
+If you’re running Docker on Linux, you have a third option: `tmpfs` mounts.
+
+A `tmpfs` mount is temporary, and only persisted in the host memory. 
+
+image::types-of-mounts-tmpfs.png[title="tmpfs mounts", alt="tmpfs mounts", width="95%"]
+
+This is useful to temporarily store sensitive files that you don’t want to persist in either the host or the container writable layer.
+
+*Limitations of tmpfs mounts*
+
+* Unlike volumes and bind mounts, you can’t share tmpfs mounts between containers.
+* This functionality is only available if you’re running Docker on Linux.
+
+The `--mount` syntax is more verbose than `--tmpfs`:
+
+* The `type` of the mount is always `tmpfs`.
+* The `destination` takes as its value the path where the `tmpfs` mount is mounted in the container. May be specified as `destination`, `dst`, or `target`.
+* The `tmpfs-type` option -- Size of the tmpfs mount in bytes. Unlimited by default.
+* The `tmpfs-mode` option -- File mode of the tmpfs in octal. For instance, `700` or `0770`. Defaults to `1777` or world-writable.
+
+WARNING: 这里的 `0777` 和 `1777` 是什么意思？
 
 
+* The `--tmpfs` flag does not allow you to specify any configurable options.
+* The `--tmpfs` flag cannot be used with swarm services. You must use `--mount`.
+
+[source,bash]
+----
+$ docker run -d \
+  -it \
+  --name tmptest \
+  --mount type=tmpfs,destination=/app \
+  nginx:latest
+
+$ docker container inspect tmptest
+
+$ docker container stop tmptest
+
+$ docker container rm tmptest
+----
+
+[source,bash]
+----
+$ docker run -d \
+  -it \
+  --name tmptest \
+  --mount type=tmpfs,destination=/app,tmpfs-mode=1770 \
+  nginx:latest
+----
+
+== Troubleshoot volume errors
+
+没看明白。
+
+WARNING: `/var/lib/docker/` 这里都是啥玩意？
+
+== storage drivers
+
+To use storage drivers effectively, it’s important to know how Docker builds and stores images, and how these images are used by containers.
+
+Storage drivers allow you to create data in the writable layer of your container.
+
+[source,bash]
+----
+FROM ubuntu:15.04
+COPY . /app
+RUN make /app
+CMD python /app/app.py
+----
+
+Each layer is only a set of differences from the layer before it. The layers are stacked on top of each other. When you create a new container, you add a new writable layer on top of the underlying layers. This layer is often called the “container layer”. 
+
+image::container-layers.jpg[title="Container layers", alt="Container layers", width="95%"]
+
+A storage driver handles the details about the way these layers interact with each other.
+
+The major difference between a container and an image is the top writable layer. All writes to the container that add new or modify existing data are stored in this writable layer. When the container is deleted, the writable layer is also deleted. The underlying image remains unchanged.
+
+Because each container has its own writable container layer, and all changes are stored in this container layer, multiple containers can share access to the same underlying image and yet have their own data state. 
+
+image::sharing-layers.jpg[title="Sharing layers", alt="Sharing layers", width="95%"]
+
+Docker uses storage drivers to manage the contents of the image layers and the writable container layer. All drivers use stackable image layers and the copy-on-write (CoW) strategy.
 
 
+Use the `docker ps -s` command to view the approximate size of a running container.
+
+* `size`: the amount of data (on disk) that is used for the writable layer of each container.
+* `virtual size`: the amount of data used for the read-only image data used by the container plus the container’s writable layer `size`.
+
+The total disk space used by all of the running containers on disk is some combination of each container’s `size` and the `virtual size` values. If multiple containers started from the same exact image, the total size on disk for these containers would be SUM (`size` of containers) plus one image size (`virtual size` - `size`).
+
+* Disk space used for log files if you use the `json-file` logging driver.
+* Volumes and bind mounts used by the container.
+* Disk space used for the container’s configuration files.
+* Memory written to disk (if swapping is enabled).
+* Checkpoints, if you’re using the experimental checkpoint/restore feature.
+
+The copy-on-write (CoW) strategy is a strategy of sharing and copying files for maximum efficiency. The first time another layer needs to modify the file (when building the image or running the container), the file is copied into that layer and modified.
+
+each layer is pulled down separately, and stored in Docker’s local storage area, which is usually `/var/lib/docker/` on Linux hosts.
+
+Each of these layers is stored in its own directory inside the Docker host’s local storage area. To examine the layers on the filesystem, list the contents of `/var/lib/docker/<storage-driver>/layers/`. 
+
+The directory names do not correspond to the layer IDs (this has been true since Docker 1.10).
+
+If you build images from the two Dockerfiles, you can use `docker image ls` and `docker history` commands to verify that the cryptographic IDs of the shared layers are the same.
 
 
-
-
-
-
-
-
-
-
-
-
+. Make a new directory `cow-test/` and change into it.
+. Within `cow-test/`, create a new file `hello.sh` with the following contents:
++
+[source,bash]
+----
+#!/bin/sh
+echo "Hello world"
+----
++
+Save the file, and make it executable:
++
+[source,bash]
+----
+$ chmod +x hello.sh
+----
++
+. Create a new file called `Dockerfile.base`.
++
+[source,bash]
+----
 FROM ubuntu:latest
-CMD ["/bin/echo", "Hello, D瓜哥！"]
+COPY . /app
+----
++
+. Create another new file called `Dockerfile`.
++
+[source,bash]
+----
+FROM acme/my-base-image:1.0
+CMD /app/hello.sh
+----
++
+. Within the `cow-test/` directory, build the first image. Don’t forget to include the final `.` in the command. That sets the `PATH`, which tells Docker where to look for any files that need to be added to the image.
++
+[source,bash]
+----
+$ docker build -t acme/my-base-image:1.0 -f Dockerfile.base .
+----
++
+. Build the second image.
++
+[source,bash]
+----
+$ docker build -t acme/my-final-image:1.0 -f Dockerfile .
+----
++
+. Check out the sizes of the images:
++
+[source,bash]
+----
+$ docker image ls
+REPOSITORY                TAG                 IMAGE ID            CREATED             SIZE
+acme/my-final-image       1.0                 e9df33dcd02a        7 minutes ago       88.9MB
+acme/my-base-image        1.0                 af47138a5586        7 minutes ago       88.9MB
+----
++
+. Check out the layers that comprise each image:
++
+[source,bash]
+----
+$ docker history af47138a5586
+IMAGE               CREATED             CREATED BY                                      SIZE                COMMENT
+af47138a5586        8 minutes ago       /bin/sh -c #(nop) COPY dir:2b09a84bc07301dc5…   106B
+94e814e2efa8        3 weeks ago         /bin/sh -c #(nop)  CMD ["/bin/bash"]            0B
+<missing>           3 weeks ago         /bin/sh -c mkdir -p /run/systemd && echo 'do…   7B
+<missing>           3 weeks ago         /bin/sh -c rm -rf /var/lib/apt/lists/*          0B
+<missing>           3 weeks ago         /bin/sh -c set -xe   && echo '#!/bin/sh' > /…   745B
+<missing>           3 weeks ago         /bin/sh -c #(nop) ADD file:1d7cb45c4e196a6a8…   88.9MB
+----
++
+[source,bash]
+----
+$ docker history e9df33dcd02a
+IMAGE               CREATED             CREATED BY                                      SIZE                COMMENT
+e9df33dcd02a        2 hours ago         /bin/sh -c #(nop)  CMD ["/bin/sh" "-c" "/app…   0B
+af47138a5586        2 hours ago         /bin/sh -c #(nop) COPY dir:2b09a84bc07301dc5…   106B
+94e814e2efa8        3 weeks ago         /bin/sh -c #(nop)  CMD ["/bin/bash"]            0B
+<missing>           3 weeks ago         /bin/sh -c mkdir -p /run/systemd && echo 'do…   7B
+<missing>           3 weeks ago         /bin/sh -c rm -rf /var/lib/apt/lists/*          0B
+<missing>           3 weeks ago         /bin/sh -c set -xe   && echo '#!/bin/sh' > /…   745B
+<missing>           3 weeks ago         /bin/sh -c #(nop) ADD file:1d7cb45c4e196a6a8…   88.9MB
+----
++
+Notice that all the layers are identical except the top layer of the second image. All the other layers are shared between the two images, and are only stored once in `/var/lib/docker/`. 
++
+NOTE: The `<missing>` lines in the `docker history` output indicate that those layers were built on another system and are not available locally. This can be ignored.
+
+=== Copying makes containers efficient
+
+When you start a container, a thin writable container layer is added on top of the other layers. Any changes the container makes to the filesystem are stored here.
+
+When an existing file in a container is modified, the storage driver performs a copy-on-write operation.
+
+For the `aufs`, `overlay`, and `overlay2` drivers, the copy-on-write operation follows this rough sequence:
+
+* Search through the image layers for the file to update. The process starts at the newest layer and works down to the base layer one layer at a time. When results are found, they are added to a cache to speed future operations.
+* Perform a `copy_up` operation on the first copy of the file that is found, to copy the file to the container’s writable layer.
+* Any modifications are made to this copy of the file, and the container cannot see the read-only copy of the file that exists in the lower layer.
+
+NOTE: for write-heavy applications, you should not store the data in the container. Instead, use Docker volumes.
 
 
 

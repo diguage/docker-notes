@@ -1,0 +1,362 @@
+= Curriculum
+
+本文是 D瓜哥 学习 https://docker-curriculum.com/[Docker Curriculum: A Docker Tutorial for Beginners] 的一个随手笔记。内容略乱。
+
+== What is Docker?
+
+Docker is a tool that allows developers, sys-admins etc. to easily deploy their applications in a sandbox (called containers) to run on the host operating system i.e. Linux.
+
+The key benefit of Docker is that it allows users to package an application with all of its dependencies into a standardized unit for software development.
+
+== Why use containers?
+
+Containers offer a logical packaging mechanism in which applications can be abstracted from the environment in which they actually run. This gives developers the ability to create predictable environments that are isolated from rest of the applications and can be run anywhere.
+
+[source,bash]
+----
+$ docker pull busybox
+
+$ docker images
+
+$ docker run busybox <1>
+
+$ docker run busybox echo "hello from busybox"
+
+$ docker ps
+
+$ docker ps -a
+
+$ docker container prune <2>
+
+$ docker run -it busybox sh <3>
+
+$ docker rm 305297d7a235 ff0a5c3750b9
+
+$ docker rm $(docker ps -a -q -f status=exited) <4>
+----
+<1> When you call run, the Docker client finds the image (busybox in this case), loads up the container and then runs a command in that container.
+<2> 清除所有无用的 container。
+<3> Running the `run` command with the ` ` flags attaches us to an interactive tty in the container.
+<4> This command deletes all containers that have a status of `exited`. 
+
+
+One last thing that'll be useful is the `--rm` flag that can be passed to `docker run` which automatically deletes the container once it's exited from. 
+
+Images:: The blueprints of our application which form the basis of containers.
+Containers:: Created from Docker images and run the actual application. A list of running containers can be seen using the `docker ps` command.
+Docker Daemon:: The background service running on the host that manages building, running and distributing Docker containers. The daemon is the process that runs in the operating system to which clients talk to.
+Docker Client:: The command line tool that allows the user to interact with the daemon. More generally, there can be other forms of clients too - such as https://kitematic.com/[Kitematic] which provide a GUI to the users.
+Docker Hub:: A https://hub.docker.com/search/?q=&type=image[registry] of Docker images. You can think of the registry as a directory of all available Docker images.
+
+
+== WEBAPPS WITH DOCKER
+
+[source,bash]
+----
+$ docker run -d -P --name static-site prakhar1989/static-site <1>
+
+$ docker port static-site <2>
+
+$ docker run -p 8888:80 prakhar1989/static-site <3>
+
+$ docker stop static-site <4>
+----
+<1> `-d` will detach our terminal, `-P` will publish all exposed ports to random ports and finally `--name` corresponds to a name we want to give. 
+<2> list port mapping
+<3> specify a custom port to which the client will forward connections to the container.
+<4> To stop a detached container, run `docker stop` by giving the container ID. 
+
+
+You can also search for images directly from the command line using `docker search`.
+
+An important distinction to be aware of when it comes to images is the difference between base and child images.
+
+* *Base images* are images that have no parent image, usually images with an OS like ubuntu, busybox or debian.
+* *Child images* are images that build on base images and add additional functionality.
+
+Then there are official and user images, which can be both base and child images.
+
+* *Official images* are images that are officially maintained and supported by the folks at Docker. These are typically one word long. In the list of images above, the `python`, `ubuntu`, `busybox` and `hello-world` images are official images.
+* *User images* are images created and shared by users like you and me. They build on base images and add additional functionality. Typically, these are formatted as `user/image-name`.
+
+`python:3-onbuild`. These images include multiple ONBUILD triggers, which should be all you need to bootstrap most applications. The build will COPY a `requirements.txt` file, RUN `pip install` on said file, and then copy the current directory into `/usr/src/app`.
+
+A Dockerfile is a simple text-file that contains a list of commands that the Docker client calls while creating an image.
+
+[source,bash]
+----
+# Instructions copied from - https://hub.docker.com/_/python/
+FROM python:3-onbuild
+
+# tell the port number the container should expose
+EXPOSE 5000
+
+# run the command
+CMD ["python", "./app.py"]
+----
+
+[source,bash]
+----
+$ git clone https://github.com/prakhar1989/docker-curriculum
+$ cd docker-curriculum/flask-app
+
+$ docker build -t diguage/catnip . <1>
+
+$ docker run -p 8888:5000 diguage/catnip <2>
+
+$ docker login <3>
+
+$ docker push diguage/catnip <4>
+----
+<1> build image
+<2> run an image
+<3> logging into Docker Hub 
+<4> pushing an image. Remember to replace the name of the image tag above with yours. 
+
+
+
+[source,bash]
+----
+$ docker pull docker.elastic.co/elasticsearch/elasticsearch:6.7.0 <1>
+$ docker pull elasticsearch:6.7.0 <1>
+
+$ docker run -d --name es -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" elasticsearch:6.7.0 <2>
+
+$ docker container ls
+
+$ docker container logs es
+
+$ curl 0.0.0.0:9200
+
+----
+<1> pull the image
+<2> run it in development mode by specifying ports and setting an environment variable that configures Elasticsearch cluster to run as a single-node. `--name` es to give our container a name 
+
+[source,bash]
+----
+# start from base
+FROM ubuntu:latest
+MAINTAINER Prakhar Srivastav <prakhar@prakhar.me>
+
+# install system-wide deps for python and node
+RUN apt-get -yqq update <1>
+RUN apt-get -yqq install python-pip python-dev curl gnupg
+RUN curl -sL https://deb.nodesource.com/setup_10.x | bash
+RUN apt-get install -yq nodejs
+
+# copy our application code
+ADD flask-app /opt/flask-app <2>
+WORKDIR /opt/flask-app
+
+# fetch app specific deps
+RUN npm install
+RUN npm run build
+RUN pip install -r requirements.txt
+
+# expose port
+EXPOSE 5000
+
+# start app
+CMD [ "python", "./app.py" ]
+----
+<1> The `yqq` flag is used to suppress output and assumes "Yes" to all prompts.
+<2> We then use the `ADD` command to copy our application into a new volume in the container - `/opt/flask-app`.
+
+TIP: 这个 `Dockerfile`，还可以用 multi-images 优化一下。
+
+[source,bash]
+----
+$ git clone https://github.com/prakhar1989/FoodTrucks && cd FoodTrucks
+$ docker build -t diguage/foodtrucks-web .
+$ docker run -P --rm diguage/foodtrucks-web
+
+$ docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+c2c695315b3a        bridge              bridge              local
+a875bec5d6fd        host                host                local
+ead0e804a67b        none                null                local
+
+$ docker network inspect bridge
+
+$ docker network create foodtrucks-net
+----
+
+The bridge network is the network in which containers are run by default.
+
+[source,bash]
+----
+$ docker container stop es
+
+$ docker rm es
+
+$ docker run -d --name es --net foodtrucks-net -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" elasticsearch:6.7.0
+
+docker run -it --rm --net foodtrucks-net diguage/foodtrucks-web bash
+
+$ docker run -d --net foodtrucks-net -p 5000:5000 --name foodtrucks-web diguage/foodtrucks-web
+----
+
+
+On user-defined networks like foodtrucks-net, containers can not only communicate by IP address, but can also resolve a container name to an IP address. This capability is called _automatic service discovery_. 
+
+
+默认都是 `bridge`，为什么第一次启动的时候连不上ES？
+
+=== Docker Compose
+
+Docker Compose - A tool for defining and running multi-container Docker applications.
+
+[source,bash]
+----
+$ sudo curl -L "https://github.com/docker/compose/releases/download/1.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+$ sudo chmod +x /usr/local/bin/docker-compose
+$ docker-compose --version
+----
+
+.docker-compose.yml
+[source,yaml]
+----
+version: "3"
+services:
+  es: <1>
+    image: elasticsearch:6.7.0 <2>
+    container_name: es
+    environment:
+      - discovery.type=single-node
+    ports: <3>
+      - 9200:9200
+    volumes: <5>
+      - esdata1:/usr/share/elasticsearch/data
+  web: <1>
+    image: diguage/foodtrucks-web <2>
+    command: python app.py <3>
+    depends_on: <6>
+      - es
+    ports: <3>
+      - 5000:5000
+    volumes: <4>
+      - ./flask-app:/opt/flask-app
+volumes:
+    esdata1:
+      driver: local
+----
+<1> the names of our services
+<2> Docker `image` is required
+<3> Via other parameters such as `command` and `ports` we provide more information about the container.
+<4> The volumes parameter specifies a mount point in our `web` container where the code will reside. This is purely optional and is useful if you need access to logs etc.
+<5> the data we load persists between restarts.
+<6> start the `es` container before `web`.
+
+
+[source,bash]
+----
+$ docker stop $(docker ps -q)
+
+$ docker-compose up
+
+$ docker-compose up -d
+
+$ docker-compose ps
+
+$ docker-compose down -v
+
+$ docker network rm foodtrucks-net
+
+$ docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+3ab1281e0514        bridge              bridge              local
+c2a88f94cbd7        host                host                local
+228338a84116        none                null                local
+
+$ docker-compose up -d
+
+$ docker container ls
+
+$ docker network ls
+NETWORK ID          NAME                 DRIVER              SCOPE
+3ab1281e0514        bridge               bridge              local
+0b45849b25ab        foodtrucks_default   bridge              local
+c2a88f94cbd7        host                 host                local
+228338a84116        none                 null                local
+
+$ docker ps
+CONTAINER ID        IMAGE                    COMMAND                  CREATED             STATUS              PORTS                              NAMES
+22f4c483fc17        diguage/foodtrucks-web   "python app.py"          11 minutes ago      Up 11 minutes       0.0.0.0:5000->5000/tcp             foodtrucks_web_1
+564149dc1f34        elasticsearch:6.7.0      "/usr/local/bin/dock…"   11 minutes ago      Up 11 minutes       0.0.0.0:9200->9200/tcp, 9300/tcp   es
+
+$ docker network inspect foodtrucks_default
+
+$ docker-compose run web bash
+----
+
+.docker-compose.yml for develop
+[source,yaml]
+----
+version: "3"
+services:
+  es:
+    image: elasticsearch:6.7.0
+    container_name: es
+    environment:
+      - discovery.type=single-node
+    ports:
+      - 9200:9200
+    volumes:
+      - esdata1:/usr/share/elasticsearch/data
+  web:
+    build: . # replaced image with build
+    command: python app.py
+    environment:
+      - DEBUG=True # set an env var for flask
+    depends_on:
+      - es
+    ports:
+      - 5000:5000
+    volumes:
+      - ./flask-app:/opt/flask-app
+volumes:
+    esdata1:
+      driver: local
+----
+
+[source,bash]
+----
+$ docker-compose up --build -d
+----
+
+.使用中国镜像加速构建
+[source,bash]
+----
+# start from base
+FROM ubuntu:latest
+MAINTAINER Prakhar Srivastav <prakhar@prakhar.me>
+
+# install system-wide deps for python and node
+RUN apt-get -yqq update
+RUN apt-get -yqq install python-pip python-dev curl gnupg
+RUN curl -sL https://deb.nodesource.com/setup_10.x | bash
+RUN apt-get install -yq nodejs
+
+# copy our application code
+ADD flask-app /opt/flask-app
+WORKDIR /opt/flask-app
+
+# fetch app specific deps
+RUN npm install --registry=https://registry.npm.taobao.org
+RUN npm run build --registry=https://registry.npm.taobao.org
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple/ -r requirements.txt
+
+# expose port
+EXPOSE 5000
+
+# start app
+CMD [ "python", "./app.py" ]
+----
+
+中间构建过程，安装依赖是实在太过漫长。尝试切换了一下中国镜像，发现竟然很好用。
+
+另外，构建过程中，有可能会报错。使用 `docker container ls -a` 找出异常退出的 container ID，然后使用 `docker logs <containerID>` 来查看错误信息。
+
+== References
+
+. https://docker-curriculum.com/[Docker Curriculum: A Docker Tutorial for Beginners]
