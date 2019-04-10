@@ -1,0 +1,326 @@
+= Docker Networking
+
+== Bridge network tutorial
+
+[source,bash]
+----
+$ docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+b74243bcc862        bridge              bridge              local
+0f298ef4d3d6        host                host                local
+7309c4c965e1        none                null                local
+
+$ docker run -dit --name alpine1 alpine ash <1>
+
+$ docker run -dit --name alpine2 alpine ash
+
+$ docker container ls
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+d020aaad68f0        alpine              "ash"               10 minutes ago      Up 10 minutes                           alpine2
+7120f13e9afa        alpine              "ash"               11 minutes ago      Up 11 minutes                           alpine1
+
+$ docker network inspect bridge
+[
+    {
+        "Name": "bridge",
+        "Id": "b74243bcc862375472d71f3ad66cbaa534e67c57c1251573effc8c88768a63b5",
+        "Created": "2019-04-10T15:20:57.663187656Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.17.0.0/16",
+                    "Gateway": "172.17.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "7120f13e9afa166e5280522fe34db9e72898b0e4b920c3718897bae45a7d2b72": {
+                "Name": "alpine1",
+                "EndpointID": "c1000f97c3ed9aa809042f7326545658875720715fcbce1cfff036f41d11e6be",
+                "MacAddress": "02:42:ac:11:00:02",
+                "IPv4Address": "172.17.0.2/16",
+                "IPv6Address": ""
+            },
+            "d020aaad68f029279d010df6baa41cba9c12162ef54d1b2e7eb69973567d8608": {
+                "Name": "alpine2",
+                "EndpointID": "7f9ad65a0a486e40e408dcc4a5a18932201266bf93bdc7c16c31222acc2c4473",
+                "MacAddress": "02:42:ac:11:00:03",
+                "IPv4Address": "172.17.0.3/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {
+            "com.docker.network.bridge.default_bridge": "true",
+            "com.docker.network.bridge.enable_icc": "true",
+            "com.docker.network.bridge.enable_ip_masquerade": "true",
+            "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+            "com.docker.network.bridge.name": "docker0",
+            "com.docker.network.driver.mtu": "1500"
+        },
+        "Labels": {}
+    }
+]
+
+$ docker attach alpine1 <2>
+
+# ip addr show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+4: eth0@if5: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0 <3>
+       valid_lft forever preferred_lft forever
+
+# ping -c 2 172.17.0.3
+// It's OK.
+
+# ping -c 2 alpine2
+ping: bad address 'alpine2'
+
+$ docker container stop alpine1 alpine2
+$ docker container rm alpine1 alpine2
+----
+<1> `-dit` 到底是啥意思？运行完为啥没有退出？
+<2> `docker attach` 是啥意思？
+<3> `172.17.0.2` is the same address shown for `alpine1` in the previous step.
+
+The default bridge network is not recommended for production. 
+
+[source,bash]
+----
+$ docker network create --driver bridge alpine-net
+
+$ docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+86c5ff0ae820        alpine-net          bridge              local
+b74243bcc862        bridge              bridge              local
+0f298ef4d3d6        host                host                local
+7309c4c965e1        none                null                local
+
+$ docker network inspect alpine-net
+[
+    {
+        "Name": "alpine-net",
+        "Id": "86c5ff0ae82020389010703c8b7100dd1039d48163d76990e5dca057abbf027d",
+        "Created": "2019-04-10T15:45:37.052390658Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "172.18.0.0/16",
+                    "Gateway": "172.18.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {},
+        "Options": {},
+        "Labels": {}
+    }
+]
+
+$ docker run -dit --name alpine1 --network alpine-net alpine ash
+
+$ docker run -dit --name alpine2 --network alpine-net alpine ash
+
+$ docker run -dit --name alpine3 alpine ash
+
+$ docker run -dit --name alpine4 --network alpine-net alpine ash
+
+$ docker network connect bridge alpine4 <1>
+
+$ docker container  ls
+CONTAINER ID        IMAGE               COMMAND             CREATED              STATUS              PORTS               NAMES
+29af7534f104        alpine              "ash"               About a minute ago   Up About a minute                       alpine4
+02c261c06e20        alpine              "ash"               About a minute ago   Up About a minute                       alpine3
+19b476579a47        alpine              "ash"               About a minute ago   Up About a minute                       alpine2
+6f806296de0a        alpine              "ash"               About a minute ago   Up About a minute                       alpine1
+
+$ docker network inspect bridge
+[
+    {
+        "Name": "bridge",
+        "Id": "b74243bcc862375472d71f3ad66cbaa534e67c57c1251573effc8c88768a63b5",
+        "Created": "2019-04-10T15:20:57.663187656Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.17.0.0/16",
+                    "Gateway": "172.17.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "02c261c06e20a00afe4d7ce9575e4913997a6eca45715804cfacc330a161cdc3": {
+                "Name": "alpine3",
+                "EndpointID": "9d29e03c065a1fbea419af7119c3938ec05d3e89ffcaa5cb2d098f12f2bcc4ef",
+                "MacAddress": "02:42:ac:11:00:02",
+                "IPv4Address": "172.17.0.2/16",
+                "IPv6Address": ""
+            },
+            "29af7534f10428bb0e42a4822fb1348d0e104dc1289556a12a27d49a86cde7ed": {
+                "Name": "alpine4", <1>
+                "EndpointID": "22e1090dcee4161ead04ba070372829afe9ee5dbe4380fe37fcd4de802675a6c",
+                "MacAddress": "02:42:ac:11:00:03",
+                "IPv4Address": "172.17.0.3/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {
+            "com.docker.network.bridge.default_bridge": "true",
+            "com.docker.network.bridge.enable_icc": "true",
+            "com.docker.network.bridge.enable_ip_masquerade": "true",
+            "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+            "com.docker.network.bridge.name": "docker0",
+            "com.docker.network.driver.mtu": "1500"
+        },
+        "Labels": {}
+    }
+]
+
+$ docker network inspect alpine-net
+[
+    {
+        "Name": "alpine-net",
+        "Id": "86c5ff0ae82020389010703c8b7100dd1039d48163d76990e5dca057abbf027d",
+        "Created": "2019-04-10T15:45:37.052390658Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "172.18.0.0/16",
+                    "Gateway": "172.18.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "19b476579a47038a42e9d429bd7b04c5e347737870c322d460b9a1b410a8d003": {
+                "Name": "alpine2",
+                "EndpointID": "14f9c793c748e572104b66fca91658f5e78b15713edfd8b553e71ceb7d580a55",
+                "MacAddress": "02:42:ac:12:00:03",
+                "IPv4Address": "172.18.0.3/16",
+                "IPv6Address": ""
+            },
+            "29af7534f10428bb0e42a4822fb1348d0e104dc1289556a12a27d49a86cde7ed": {
+                "Name": "alpine4", <2>
+                "EndpointID": "536b2c3c83c0e0c0c9e5f3569cce1ed3eb92dde9b5f3dfefec7e2350bebe1458",
+                "MacAddress": "02:42:ac:12:00:04",
+                "IPv4Address": "172.18.0.4/16",
+                "IPv6Address": ""
+            },
+            "6f806296de0a2bbd3d93d0d6feaf8a91ecebb73e9ef9eff31c9da518e734a874": {
+                "Name": "alpine1",
+                "EndpointID": "6232bff81af9df498487df2247eba718e91fa6870c70b0d1e013fd9caef54493",
+                "MacAddress": "02:42:ac:12:00:02",
+                "IPv4Address": "172.18.0.2/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {},
+        "Labels": {}
+    }
+]
+
+$ docker container attach  alpine1
+/ # ping -c 2 alpine2
+PING alpine2 (172.18.0.3): 56 data bytes
+64 bytes from 172.18.0.3: seq=0 ttl=64 time=0.108 ms
+64 bytes from 172.18.0.3: seq=1 ttl=64 time=0.093 ms
+
+--- alpine2 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.093/0.100/0.108 ms
+/ # ping -c 2 alpine4
+PING alpine4 (172.18.0.4): 56 data bytes
+64 bytes from 172.18.0.4: seq=0 ttl=64 time=0.103 ms
+64 bytes from 172.18.0.4: seq=1 ttl=64 time=0.093 ms
+
+--- alpine4 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.093/0.098/0.103 ms
+/ # ping -c 2 alpine1
+PING alpine1 (172.18.0.2): 56 data bytes
+64 bytes from 172.18.0.2: seq=0 ttl=64 time=0.029 ms
+64 bytes from 172.18.0.2: seq=1 ttl=64 time=0.062 ms
+
+--- alpine1 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.029/0.045/0.062 ms
+
+# ping -c 2 alpine3
+ping: bad address 'alpine3'
+
+# ping -c 2 172.17.0.2
+PING 172.17.0.2 (172.17.0.2): 56 data bytes
+
+--- 172.17.0.2 ping statistics ---
+2 packets transmitted, 0 packets received, 100% packet loss
+
+
+$ docker container stop alpine1 alpine2 alpine3 alpine4
+
+$ docker container rm alpine1 alpine2 alpine3 alpine4
+
+$ docker network rm alpine-net
+
+----
+<1> 由于执行了上面那句话，所以，`alpine4` 会出现在这里。
+<2> `alpine4` 在 `alpine-net` 也出现。 -- D瓜哥注：由此可以看出，利用 Docker 可以很方便地模拟网络拓扑图。然后测试各种网络问题。
+
+`alpine4` is connected to both the default `bridge` network and `alpine-net`. It should be able to reach all of the other containers. However, you will need to address `alpine3` by its IP address. 
+
+Detach from `alpine1` using detach sequence, `CTRL + p` `CTRL + q` (hold down `CTRL` and type `p` followed by `q`).
+
+
+On user-defined networks like `alpine-net`, containers can not only communicate by IP address, but can also resolve a container name to an IP address. This capability is called *automatic service discovery*. 
+
+
+
+== Networking with overlay networks

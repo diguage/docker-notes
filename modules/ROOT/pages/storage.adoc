@@ -533,5 +533,84 @@ For the `aufs`, `overlay`, and `overlay2` drivers, the copy-on-write operation f
 
 NOTE: for write-heavy applications, you should not store the data in the container. Instead, use Docker volumes.
 
+[qanda]
+Docker 镜像依赖具体的 Storage  Driver 吗？在 Ubuntu 上制作的镜像可以在 CentOS 上运行吗？::
+  ??
+
+Check docker container size:
+
+. run the following `docker run` commands.
++
+[source,bash]
+----
+$ docker run -dit --name my_container_1 acme/my-final-image:1.0 bash \
+  && docker run -dit --name my_container_2 acme/my-final-image:1.0 bash \
+  && docker run -dit --name my_container_3 acme/my-final-image:1.0 bash \
+  && docker run -dit --name my_container_4 acme/my-final-image:1.0 bash \
+  && docker run -dit --name my_container_5 acme/my-final-image:1.0 bash
+----
++
+. Run the `docker ps` command to verify the 5 containers are running.
++
+[source,bash]
+----
+$ docker ps
+CONTAINER ID        IMAGE                     COMMAND             CREATED             STATUS              PORTS               NAMES
+674b7919904b        acme/my-final-image:1.0   "bash"              3 minutes ago       Up 3 minutes                            my_container_5
+42a4a0d0623e        acme/my-final-image:1.0   "bash"              3 minutes ago       Up 3 minutes                            my_container_4
+59fc52e441b7        acme/my-final-image:1.0   "bash"              3 minutes ago       Up 3 minutes                            my_container_3
+a71d6d72d431        acme/my-final-image:1.0   "bash"              3 minutes ago       Up 3 minutes                            my_container_2
+04372919d606        acme/my-final-image:1.0   "bash"              3 minutes ago       Up 3 minutes                            my_container_1
+----
++
+. List the contents of the local storage area.
++
+[source,bash]
+----
+$ sudo ls /var/lib/docker/containers
+04372919d60611472092a0c67ac37727d882c4540688a7582bfa1b03498b9d00
+42a4a0d0623e35b13eb8bc00ee360ee2e2eb1ff2b9d61162aa0e87c54ca98c7c
+59fc52e441b7574f5bd7879833dad5d35b1bd778efccd10aa17650fcee3870a2
+674b7919904b90995d2f41cc056cedc98e42162fbe6a49b7d41338b8c582b966
+a71d6d72d431d595c81dd0f88fab49c97f08ebc63300dbc9ffe8f503a297d82a
+----
++
+. Now check out their sizes:
++
+[source,bash]
+----
+# du -sh /var/lib/docker/containers/* <1>
+36K	/var/lib/docker/containers/04372919d60611472092a0c67ac37727d882c4540688a7582bfa1b03498b9d00
+36K	/var/lib/docker/containers/42a4a0d0623e35b13eb8bc00ee360ee2e2eb1ff2b9d61162aa0e87c54ca98c7c
+36K	/var/lib/docker/containers/59fc52e441b7574f5bd7879833dad5d35b1bd778efccd10aa17650fcee3870a2
+36K	/var/lib/docker/containers/674b7919904b90995d2f41cc056cedc98e42162fbe6a49b7d41338b8c582b966
+36K	/var/lib/docker/containers/a71d6d72d431d595c81dd0f88fab49c97f08ebc63300dbc9ffe8f503a297d82a
+----
+<1> 使用普通账户，竟然显示没有权限。所以，只能切换成 `root` 权限来搞。
++
+Each of these containers only takes up 32k of space on the filesystem.
+
+Not only does copy-on-write save space, but it also reduces start-up time.
+
+
+== Select storage drivers
+
++
++
+[source,bash]
+----
+----
++
++
+[source,bash]
+----
+----
++
++
+[source,bash]
+----
+----
++
+
 
 
