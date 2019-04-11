@@ -142,6 +142,51 @@ $ ansible all -a "/bin/echo hello"
 
 == Ansible 使用 
 
+`/etc/ansible/ansible.cfg` – Config file
+
+`~/.ansible.cfg` – User config file, overrides the default config
+
+=== `ansible`
+
+is an extra-simple tool/framework/API for doing ‘remote things’. this command allows you to define and run a single task ‘playbook’ against a set of hosts
+
+=== `ansible-config`
+
+
+
+=== `ansible-console`
+
+a REPL that allows for running ad-hoc tasks against a chosen inventory (based on dominis’ ansible-shell).
+
+=== `ansible-doc`
+
+displays information on modules installed in Ansible libraries. It displays a terse listing of plugins and their short descriptions, provides a printout of their DOCUMENTATION strings, and it can create a short “snippet” which can be pasted into a playbook.
+
+=== `ansible-galaxy`
+
+command to manage Ansible roles in shared repositories, the default of which is Ansible Galaxy https://galaxy.ansible.com.
+
+=== `ansible-inventory`
+
+used to display or dump the configured inventory as Ansible sees it
+
+=== `ansible-playbook`
+
+the tool to run Ansible playbooks, which are a configuration and multinode deployment system. See the project home page (https://docs.ansible.com) for more information.
+
+=== `ansible-pull`
+
+pulls playbooks from a VCS repo and executes them for the local host
+
+
+is used to up a remote copy of ansible on each managed node, each set to run via cron and update playbook source via a source repository. This inverts the default push architecture of ansible into a pull architecture, which has near-limitless scaling potential.
+
+The setup playbook can be tuned to change the cron frequency, logging locations, and parameters to ansible-pull. This is useful both for extreme scale-out as well as periodic remediation. Usage of the ‘fetch’ module to retrieve logs from ansible-pull runs would be an excellent way to gather and analyze remote logs from ansible-pull.
+
+=== `ansible-vault`
+
+encryption/decryption utility for Ansible data files
+
 [source,bash]
 ----
 
