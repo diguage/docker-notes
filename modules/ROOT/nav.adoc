@@ -4,6 +4,7 @@
 * xref:network.adoc[网络]
 * xref:storage.adoc[管理数据]
 * xref:java-image.adoc[制作 Java 镜像]
+* xref:ansible.adoc[Ansible 安装与配置]
 * xref:curriculum.adoc[Docker Curriculum]
 // * xref:12factor-java-application.adoc[12 Factor Java Application]
 // * xref:dev-best-practices.adoc[Docker 开发最佳实践]

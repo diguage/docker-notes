@@ -1,0 +1,153 @@
+= Ansible 安装与配置
+
+== Vultr 私有网络配置
+
+先做个广告： https://www.vultr.com/?ref=7092716[购买机器请点击： https://www.vultr.com/?ref=7092716 好用不贵。]
+
+. Deploy new Server 时选中 “Private Network”。推荐 Los Angeles 节点的服务器。D瓜哥感觉没啥用，但是选上吧。
+. 打开 https://my.vultr.com/networks/[Private Networks]，点击 https://my.vultr.com/networks/add/[Add Network] 按钮，
+.. `Location` -- 选中和上述服务器节点相同的地点
+.. `Description` -- 起个名字，方便识别
+.. `Network` -- 这个可以设置私有网络的网段，根据自己的需要设置，比如D瓜哥设置的是 `172.16.0.0/16`。
+. 打开刚刚新建的服务器的设置页面，如下：
++
+image::vultr-private-network.png[title="vultr private network", alt="vultr private network", width="95%"]
++
+.. 在最下面 `Network` 中选择刚刚新建的网络中 `Description` 设置的名字的子网，然后点击 `Attach Network` 创建私有网络IP。
+.. 然后，注意刚刚点击按钮上面的网络 IP 地址以及 MAC Address 地址。
+. https://www.vultr.com/docs/configuring-private-network[Configuring Private Network] 中有各个系统的私有网络设置。D瓜哥 用的是 Ubuntu 18.04，下面细说一下 Ubuntu 18.04 的配置。
+. `ssh` 到刚刚创建的服务器上面，然后打开 `/etc/netplan/10-ens3.yaml`，然后再下面添加 `ens7` 的以太网配置。
++
+[source,yaml]
+----
+# vim /etc/netplan/10-ens3.yaml
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ens3:
+      dhcp4: yes
+    ens7:
+      match:
+        macaddress: 5a:00:01:fd:53:06 <1>
+      mtu: 1450
+      dhcp4: no
+      addresses: [172.16.0.3/16] <1>
+----
+<1> 这里的 IP 和 Mac Address 就是上面的提到的 IP 和 Mac Address 。
+. 配置完成后，重启网络 `netplan apply`，然后 `ifconfig` 就可以看到 `ens7` 的网络信息了。
+. 多台服务器之间，按照这个模式配置起来，需要同一个子网下的，就选择同一个子网。可以相互 `ping` 一下测试网络连通情况。
+
+== Ansible 的安装与设置
+
+[source,bash]
+----
+$ sudo apt-get update
+$ sudo apt-get install software-properties-common
+$ sudo apt-add-repository --yes --update ppa:ansible/ansible
+$ sudo apt-get install ansible
+----
+
+控制主机：用于控制其它机器的主机 
+管理主机：被控制主机管理的主机
+
+一台控制主机：
+
+node1: 172.16.0.3
+
+两台管理主机：
+
+node2: 172.16.0.4
+node3: 172.16.0.5
+
+. 配置管理主机：在控制主机上，执行 `vim /etc/ansible/hosts` ，然后在最下面输入如下内容：
++
+[source,bash]
+----
+172.16.0.4
+172.16.0.5
+----
++
+. 在控制主机上，生成 SSH 密钥对 `ssh-keygen -C node1`
+. 将公钥拷贝到每台管理主机的 `.ssh/authorized_keys`
++
+[source,bash]
+----
+ssh-copy-id -i ~/.ssh/id_rsa.pub root@172.16.0.4
+ssh-copy-id -i ~/.ssh/id_rsa.pub root@172.16.0.5
+----
+. Ansible 配置 `vim /etc/ansible/ansible.cfg`
+.. 禁用每次执行ansbile命令检查ssh key host 
++
+[source]
+----
+host_key_checking = False
+----
++
+. 开启日志记录 
++
+[source]
+----
+log_path = /var/log/ansible.log
+----
++
+. ansible连接加速配置
++
+[source,bash]
+----
+[accelerate]
+accelerate_port = 5099
+#accelerate_port = 10000 
+#accelerate_timeout = 30
+#accelerate_connect_timeout = 5.0
+
+# If set to yes, accelerate_multi_key will allow multiple
+# private keys to be uploaded to it, though each user must
+# have access to the system via SSH to add a new key. The default
+# is "no".
+accelerate_multi_key = yes
+----
++
+. 测试 `ansible all -m ping`
++
+[source,bash]
+----
+$ ansible all -m ping
+172.16.0.5 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+172.16.0.4 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+
+
+# as bruce
+$ ansible all -m ping -u bruce
+# as bruce, sudoing to root
+$ ansible all -m ping -u bruce --sudo
+# as bruce, sudoing to batman
+$ ansible all -m ping -u bruce --sudo --sudo-user batman
+
+# With latest version of ansible `sudo` is deprecated so use become
+# as bruce, sudoing to root
+$ ansible all -m ping -u bruce -b
+# as bruce, sudoing to batman
+$ ansible all -m ping -u bruce -b --become-user batman
+
+
+$ ansible all -a "/bin/echo hello"
+----
+
+== Ansible 使用 
+
+[source,bash]
+----
+
+----
+
+== 参考资料
+
+. https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html#latest-releases-via-apt-ubuntu[Installation Guide — Ansible Documentation]
+. https://blog.csdn.net/xyang81/article/details/51568227[Ansible安装与配置（自动化运维管理工具）]

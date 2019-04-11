@@ -20,3 +20,4 @@
 === 摸石头过河
 
 . xref:java-image.adoc[制作 Java 镜像]
+. xref:ansible.adoc[Ansible 安装与配置]
