@@ -84,14 +84,14 @@ ssh-copy-id -i ~/.ssh/id_rsa.pub root@172.16.0.5
 host_key_checking = False
 ----
 +
-. 开启日志记录 
+.. 开启日志记录 
 +
 [source]
 ----
 log_path = /var/log/ansible.log
 ----
 +
-. ansible连接加速配置
+.. ansible连接加速配置
 +
 [source,bash]
 ----
